@@ -1,4 +1,6 @@
 target
 .vscode
 src/tests
+src/[r]scanner.rs
 bin
+rlox-lang.exe

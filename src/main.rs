@@ -18,9 +18,7 @@ use crate::{
     token::Token
 };
 use std::{
-    env, fs,
-    io::{self, Write},
-    process::exit,
+    collections::HashMap, env, fs, io::{self, Write}
 };
 
 fn run_prompt() -> Result<(), String> {
@@ -37,52 +35,37 @@ fn run_prompt() -> Result<(), String> {
     loop {
         let mut src = String::new();
         print!(">>> ");
-        stdout.flush().unwrap();
+        stdout.flush().map_err(|err| err.to_string())?;
 
-        match stdin.read_line(&mut src) {
-            Ok(n) => {
-                if n == 0 {
-                    println!("\nInterpreter Quit");
-                    return Ok(());
-                }
-            }
-            Err(_) => return Err(String::from("Failed to read input")),
+        if stdin.read_line(&mut src).map_err(|err| err.to_string())? == 0 {
+            println!("Interpreter Quit");
+            return Ok(())
         }
 
-        let src = src.trim();
-
-        if src.is_empty() {
-            println!("");
-            continue;
-        }
-
-        match run(src, &mut interpreter) {
-            Ok(_) => (),
-            Err(msg) => println!("\nERROR:\n{msg}\n"),
-        };
+        run(src, &mut interpreter).unwrap_or_else(|msg| println!("\nERROR:\n{msg}\n"))
     }
 }
 
 fn run_file(path: &str) -> Result<(), String> {
     let mut interpreter = Interpreter::new();
-    match fs::read_to_string(path) {
-        Ok(src) => run(src.as_str(), &mut interpreter)?,
-        Err(msg) => return Err(msg.to_string()),
-    };
 
-    Ok(())
+    match fs::read_to_string(path) {
+        Ok(src) => run(src, &mut interpreter),
+        Err(msg) => Err(msg.to_string()),
+    }
 }
 
-fn run(src: &str, interpreter: &mut Interpreter) -> Result<(), String> {
-    let mut scanner: Scanner = Scanner::new(src);
+fn run(src: String, interpreter: &mut Interpreter) -> Result<(), String> {
+    let mut scanner: Scanner = Scanner::new(src.as_str());
     let tokens: Vec<Token> = scanner.scan_tokens()?;
 
-
+    dbg!(&tokens);
+    
     let mut parser: Parser = Parser::new(tokens);
     let statements: Vec<Stmt> = parser.parse()?;
 
-    let mut resolver = Resolver::new();
-    let locals = resolver.resolve(&statements)?;
+    let mut resolver: Resolver = Resolver::new();
+    let locals: HashMap<usize, usize> = resolver.resolve(&statements)?;
 
     interpreter.resolve(locals);
     interpreter.interpret(statements.iter().collect())?;
@@ -92,18 +75,11 @@ fn run(src: &str, interpreter: &mut Interpreter) -> Result<(), String> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    env::set_var("RUST_BACKTRACE", "1");
+
     match args.len() {
-        1 => match run_prompt() {
-            Ok(_) => (),
-            Err(msg) => println!("Error:\n {msg}"),
-        },
-        2 => match run_file(&args[1]) {
-            Ok(_) => (),
-            Err(msg) => println!("Error:\n {msg}"),
-        },
-        _ => {
-            println!("[Error] please use as lox ___");
-            exit(64)
-        }
-    }
+        1 => run_prompt().unwrap_or_else(|msg| println!("{msg}")),
+        2 => run_file(&args[1]).unwrap_or_else(|msg| println!("{msg}")),
+        _ => println!("Please use as rlox ''filepath")
+    }    
 }

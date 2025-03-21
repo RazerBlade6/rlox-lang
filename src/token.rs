@@ -78,6 +78,9 @@ pub enum TokenType {
 
     // End of File
     Eof,
+
+    // Generic Ignore
+    None
 }
 
 impl TokenType {
@@ -125,6 +128,7 @@ impl TokenType {
             TokenType::Var => return "Var",
             TokenType::While => return "While",
             TokenType::Eof => return "Eof",
+            TokenType::None => return "None"
         }
     }
 }

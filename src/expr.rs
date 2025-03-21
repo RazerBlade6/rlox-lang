@@ -27,9 +27,12 @@
 //! 
 //! fn main() {
 //!     let left: Expr = Expr::literal(Literal::Number(45.2));
-//!     let token: Token = Token::new(Token::new(TokenType::Plus, "+", 0));
+//!     let token: Token = Token::new(Token::new(TT::Plus, "+", 0));
 //!     let right: Expr = Expr::literal(Literal::Number(21.1))
 //!     let expr: Expr = Expr::binary(left, token, right)
+//! 
+//! 
+//!     Expr retains general info pertaining to overall structure of the 
 //! }
 //! ```
 
@@ -50,34 +53,36 @@ pub enum Literal {
     Callable(Callables),
 }
 use {Callables::*, Literal::*};
+use Literal as L;
+use TokenType as TT;
 
 impl Literal {
     pub fn to_string(&self) -> String {
         match self {
-            Number(n) => return format!("{}", n),
-            Str(s) => return s.to_string(),
-            Boolean(b) => return format!("{b}"),
-            Nil => return String::from("nil"),
-            Array(a) => return format!("[{}]", a.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ")),
-            Self::Callable(other) => other.to_string(),
+            L::Number(n) => return format!("{}", n),
+            L::Str(s) => return s.to_string(),
+            L::Boolean(b) => return format!("{b}"),
+            L::Nil => return String::from("nil"),
+            L::Array(a) => return format!("[{}]", a.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ")),
+            L::Callable(other) => other.to_string(),
         }
     }
 
     pub fn to_type(&self) -> &str {
         match self {
-            Number(_) => return "Number",
-            Str(_) => return "String",
-            Boolean(_) => return "Boolean",
-            Nil => return "nil",
-            Array(_) => return "array",
-            Callable(LoxFunction {
+            L::Number(_) => return "Number",
+            L::Str(_) => return "String",
+            L::Boolean(_) => return "Boolean",
+            L::Nil => return "nil",
+            L::Array(_) => return "array",
+            L::Callable(LoxFunction {
                 name: _,
                 params: _,
                 arity: _,
                 body: _,
                 environment: _,
             }) => return "<function>",
-            Callable(NativeFunction {
+            L::Callable(NativeFunction {
                 name: _,
                 arity: _,
                 fun: _,
@@ -87,15 +92,15 @@ impl Literal {
 
     pub fn from_token(token: Token) -> Self {
         match token.token_type {
-            TokenType::Number => Self::Number(match token.lexeme.parse::<f64>() {
+            TT::Number => Self::Number(match token.lexeme.parse::<f64>() {
                 Ok(f) => f,
                 Err(_) => panic!("Invalid Syntax: attempted to parse non-numeric as f64"),
             }),
-            TokenType::String => Self::Str(token.lexeme.to_string()),
-            TokenType::Identifier => Self::Str(token.lexeme.to_string()),
-            TokenType::True => Self::Boolean(true),
-            TokenType::False => Self::Boolean(false),
-            TokenType::Nil => Nil,
+            TT::String => Self::Str(token.lexeme.to_string()),
+            TT::Identifier => Self::Str(token.lexeme.to_string()),
+            TT::True => Self::Boolean(true),
+            TT::False => Self::Boolean(false),
+            TT::Nil => Nil,
             other => panic!(
                 "Invalid Syntax: Attempted extracting literal alue from non-valued type {}",
                 other.to_string()
@@ -342,11 +347,11 @@ impl Expr {
         let right = (*right).evaluate(environment)?;
 
         match (operator.token_type, &right) {
-            (TokenType::Minus, Number(x)) => return Ok(Number(-x)),
-            (TokenType::Minus, _) => {
+            (TT::Minus, Number(x)) => return Ok(Number(-x)),
+            (TT::Minus, _) => {
                 return Err(format!("negation not implemented for {}", right.to_type()))
             }
-            (TokenType::Bang, any) => Ok(any.is_falsy()),
+            (TT::Bang, any) => Ok(any.is_falsy()),
             _ => panic!("Invalid syntax: Parser specified non-unary expression as unary!"),
         }
     }
@@ -361,33 +366,33 @@ impl Expr {
         let right = (*right).evaluate(environment)?;
 
         match (&left, operator.token_type, &right) {
-            (Number(x), TokenType::Plus, Number(y)) => Ok(Number(x + y)),
+            (Number(x), TT::Plus, Number(y)) => Ok(Number(x + y)),
 
-            (Number(x), TokenType::Minus, Number(y)) => Ok(Number(x - y)),
+            (Number(x), TT::Minus, Number(y)) => Ok(Number(x - y)),
 
-            (Number(x), TokenType::Star, Number(y)) => Ok(Number(x * y)),
+            (Number(x), TT::Star, Number(y)) => Ok(Number(x * y)),
 
-            (Number(x), TokenType::Slash, Number(y)) => Ok(Number(x / y)),
+            (Number(x), TT::Slash, Number(y)) => Ok(Number(x / y)),
 
-            (Number(x), TokenType::Percent, Number(y)) => Ok(Number(x % y)),
+            (Number(x), TT::Percent, Number(y)) => Ok(Number(x % y)),
 
-            (Str(s1), TokenType::Plus, Str(s2)) => Ok(Str(s1.clone() + s2)),
+            (Str(s1), TT::Plus, Str(s2)) => Ok(Str(s1.clone() + s2)),
 
-            (Number(x), TokenType::Greater, Number(y)) => Ok(Boolean(x > y)),
+            (Number(x), TT::Greater, Number(y)) => Ok(Boolean(x > y)),
 
-            (Number(x), TokenType::GreaterEqual, Number(y)) => Ok(Boolean(x >= y)),
+            (Number(x), TT::GreaterEqual, Number(y)) => Ok(Boolean(x >= y)),
 
-            (Number(x), TokenType::Less, Number(y)) => Ok(Boolean(x < y)),
+            (Number(x), TT::Less, Number(y)) => Ok(Boolean(x < y)),
 
-            (Number(x), TokenType::LessEqual, Number(y)) => Ok(Boolean(x <= y)),
+            (Number(x), TT::LessEqual, Number(y)) => Ok(Boolean(x <= y)),
 
-            (x, TokenType::EqualEqual, y) => Ok(Boolean(x == y)),
+            (x, TT::EqualEqual, y) => Ok(Boolean(x == y)),
 
-            (x, TokenType::BangEqual, y) => Ok(Boolean(x != y)),
+            (x, TT::BangEqual, y) => Ok(Boolean(x != y)),
 
-            (Str(s), TokenType::Plus, other) => Ok(Str(s.to_owned() + &other.to_string())),
+            (Str(s), TT::Plus, other) => Ok(Str(s.to_owned() + &other.to_string())),
 
-            (some, TokenType::Plus, Str(s)) => Ok(Str(some.to_string() + s)),
+            (some, TT::Plus, Str(s)) => Ok(Str(some.to_string() + s)),
 
             _ => Err(format!(
                 "{} not implemented between {} and {}",
@@ -460,7 +465,7 @@ impl Expr {
         right: &Expr,
     ) -> Result<Literal, String> {
         let left: Literal = left.evaluate(environment)?;
-        if operator.token_type == TokenType::Or {
+        if operator.token_type == TT::Or {
             if left.is_truthy() {
                 return Ok(left);
             }

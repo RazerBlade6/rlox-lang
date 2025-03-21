@@ -137,12 +137,8 @@ fn parse(args: Vec<Literal>) -> Result<Literal, String> {
             "nil" => return Ok(Literal::Nil),
             _ => return Err("Type should be one of number, string, boolean, nil".to_string()),
         },
-        _ => {
-            return Err(
-                "Please use as parse(`variable`, `\"Type\"` (Number, String, Boolean, Nil))"
-                    .to_string(),
-            )
-        }
+        _ => return Err("Please use as parse(`variable`, `\"Type\"` (Number, String, Boolean, Nil))".to_string(),)
+        
     }
 
     Err(format!(

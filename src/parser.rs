@@ -478,7 +478,6 @@ impl Parser {
                 | TokenType::For
                 | TokenType::If
                 | TokenType::While
-                // | TokenType::Print
                 | TokenType::Return => return,
                 _ => (),
             }

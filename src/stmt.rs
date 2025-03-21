@@ -68,7 +68,6 @@ impl Stmt {
 
         match self {
             Expression { expr } => expr.to_string(),
-            // Print { expr } => format!("(print {})", expr.to_string()),
             Var { name, .. } => format!(
                 "Variable: {} ({})",
                 name.lexeme,

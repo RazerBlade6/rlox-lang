@@ -1,13 +1,13 @@
 //! # Scanner
-//! 
+//!
 //! A rudimentary source string Scanner + Lexer. The Scanner impl contains various
 //! utility methods to tokenize the input strings according to Lox's syntax rules.
-//! Any new tokens must be implemented within the method call stack, according to 
-//! its level. 
+//! Any new tokens must be implemented within the method call stack, according to
+//! its level.
 //!
-//! The only components of the public API of this module is a constructor `Scanner::new() -> Self` and 
+//! The only components of the public API of this module is a constructor `Scanner::new() -> Self` and
 //! `Scanner::scan_tokens(&mut self)`.
-//! 
+//!
 //! ### Limitations
 //! Unfortunately, to maintain overall code integrity (A.K.A my poor design decisions) the Scanner must have tokens
 //! as a field, so it is not possible to move it out of Scanner until runtime termination, or by cloning the whole Vec
@@ -15,7 +15,7 @@
 //! ### Usage
 //! ```
 //! use scanner::Scanner;
-//! 
+//!
 //! fn main() {
 //!     let src: &str = "some_example_str";
 //!     let mut scanner: Scanner = Scanner::new(src);
@@ -26,247 +26,260 @@
 use crate::token::*;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::Display;
 
+use TokenType as TType;
+
+#[derive(Debug)]
 pub struct Scanner {
     src: String,
-    pub tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
+    column: usize,
+}
+
+#[derive(Debug)]
+pub struct ScanError((usize, usize), String);
+
+impl Display for ScanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[SCANNER]:{}:{}\n{}", self.0 .0, self.0 .1, self.1)
+    }
+}
+
+impl Error for ScanError {}
+
+impl ScanError {
+    fn raise(location: (usize, usize), msg: String) -> Self {
+        Self(location, msg)
+    }
 }
 
 lazy_static! {
-    static ref KEYWORD_MAP: HashMap<&'static str, TokenType> = {
-        HashMap::<&'static str, TokenType>::from([
-            ("and", TokenType::And),
-            ("break", TokenType::Break),
-            ("class", TokenType::Class),
-            ("else", TokenType::Else),
-            ("false", TokenType::False),
-            ("for", TokenType::For),
-            ("fun", TokenType::Fun),
-            ("if", TokenType::If),
-            ("nil", TokenType::Nil),
-            ("or", TokenType::Or),
-            ("return", TokenType::Return),
-            ("super", TokenType::Super),
-            ("this", TokenType::This),
-            ("true", TokenType::True),
-            ("var", TokenType::Var),
-            ("while", TokenType::While),
+    static ref KEYWORD_MAP: HashMap<&'static str, TType> = {
+        HashMap::<&'static str, TType>::from([
+            ("and", TType::And),
+            ("break", TType::Break),
+            ("class", TType::Class),
+            ("else", TType::Else),
+            ("false", TType::False),
+            ("for", TType::For),
+            ("fun", TType::Fun),
+            ("if", TType::If),
+            ("nil", TType::Nil),
+            ("or", TType::Or),
+            ("return", TType::Return),
+            ("super", TType::Super),
+            ("this", TType::This),
+            ("true", TType::True),
+            ("var", TType::Var),
+            ("while", TType::While),
         ])
     };
 }
+
+use ScanError as SE;
 
 impl Scanner {
     pub fn new(src: &str) -> Self {
         Self {
             src: src.to_string(),
-            tokens: Vec::new(),
             start: 0,
             current: 0,
             line: 1,
+            column: 1,
         }
     }
 
-    /// Tokenizes the provided source string.
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>, String> {
-        while !self.is_at_end() {
+        let mut tokens: Vec<Token> = Vec::new();
+        while let Some(token) = self.generate_tokens().map_err(|e| e.to_string())? {
+            if token.token_type != TType::None {
+                tokens.push(token);
+            }
             self.start = self.current;
-            self.scan_token()?;
         }
-
-        let eof_token = Token::new(TokenType::Eof, "", self.line);
-        self.tokens.push(eof_token);
-        Ok(self.tokens.clone())
+        tokens.push(Token::new(TType::Eof, "", self.line + 1));
+        Ok(tokens)
     }
 
-    fn is_at_end(&self) -> bool {
-        self.current >= self.src.len()
-    }
-
-    fn scan_token(&mut self) -> Result<(), String> {
-        let c = self.advance();
-        match c {
-            '(' => self.add_token_t(TokenType::LeftParen),
-            ')' => self.add_token_t(TokenType::RightParen),
-            '[' => self.add_token_t(TokenType::LeftBox),
-            ']' => self.add_token_t(TokenType::RightBox),
-            '{' => self.add_token_t(TokenType::LeftBrace),
-            '}' => self.add_token_t(TokenType::RightBrace),
-            ',' => self.add_token_t(TokenType::Comma),
-            '.' => self.add_token_t(TokenType::Dot),
-            '-' => self.add_token_t(TokenType::Minus),
-            '+' => self.add_token_t(TokenType::Plus),
-            '%' => self.add_token_t(TokenType::Percent),
-            ';' => self.add_token_t(TokenType::SemiColon),
-            '*' => self.add_token_t(TokenType::Star),
-            '!' => {
+    fn generate_tokens(&mut self) -> Result<Option<Token>, SE> {
+        let token = match self.advance() {
+            None => return Ok(None),
+            Some('(') => self.generate_token(TType::LeftParen),
+            Some(')') => self.generate_token(TType::RightParen),
+            Some('[') => self.generate_token(TType::LeftBox),
+            Some(']') => self.generate_token(TType::RightBox),
+            Some('{') => self.generate_token(TType::LeftBrace),
+            Some('}') => self.generate_token(TType::RightBrace),
+            Some(',') => self.generate_token(TType::Comma),
+            Some('.') => self.generate_token(TType::Dot),
+            Some('-') => self.generate_token(TType::Minus),
+            Some('+') => self.generate_token(TType::Plus),
+            Some('%') => self.generate_token(TType::Percent),
+            Some(';') => self.generate_token(TType::SemiColon),
+            Some('*') => self.generate_token(TType::Star),
+            Some('!') => {
                 if self.expect('=') {
-                    self.add_token_t(TokenType::BangEqual);
+                    self.generate_token(TokenType::BangEqual)
                 } else {
-                    self.add_token_t(TokenType::Bang)
+                    self.generate_token(TokenType::Bang)
                 }
             }
-            '=' => {
+            Some('=') => {
                 if self.expect('=') {
-                    self.add_token_t(TokenType::EqualEqual);
+                    self.generate_token(TokenType::EqualEqual)
                 } else {
-                    self.add_token_t(TokenType::Equal);
+                    self.generate_token(TokenType::Equal)
                 }
             }
-            '<' => {
+            Some('<') => {
                 if self.expect('=') {
-                    self.add_token_t(TokenType::LessEqual);
+                    self.generate_token(TokenType::LessEqual)
                 } else {
-                    self.add_token_t(TokenType::Less);
+                    self.generate_token(TokenType::Less)
                 }
             }
-            '>' => {
+            Some('>') => {
                 if self.expect('=') {
-                    self.add_token_t(TokenType::GreaterEqual);
+                    self.generate_token(TokenType::GreaterEqual)
                 } else {
-                    self.add_token_t(TokenType::Greater);
+                    self.generate_token(TokenType::Greater)
                 }
             }
-            '/' => {
+            Some('/') => {
                 if self.expect('/') {
-                    self.single_line_comment();
-                } else if self.expect('*') {
-                    self.multi_line_comment();
+                    self.single_line_comment()
                 } else {
-                    self.add_token_t(TokenType::Slash);
+                    self.generate_token(TokenType::Slash)
                 }
             }
-            '"' => self.string()?,
-            ' ' => (),
-            '\r' => (),
-            '\n' => self.line += 1,
-            _ => {
-                if c.is_ascii_digit() {
-                    self.number();
-                } else if c.is_ascii_alphabetic() || c == '_' {
-                    self.identifier();
+            Some('"') => self.string()?,
+            Some(c) => {
+                if c.is_whitespace() {
+                    self.whitespace();
+                    Token::new(TType::None, "", self.line)
+                } else if c.is_alphabetic() || c == '_' {
+                    self.identifier()
+                } else if c.is_numeric() {
+                    self.number()?
                 } else {
-                    return Err(format!("Unexpected character: {c}"));
+                    return Err(SE::raise((self.line, self.column), format!("Unexpected Character {c}")));
                 }
             }
-        }
+        };
 
-        Ok(())
+        return Ok(Some(token));
     }
 
-    fn advance(&mut self) -> char {
-        let c = self.src.chars().nth(self.current).unwrap();
+    fn advance(&mut self) -> Option<char> {
         self.current += 1;
-        c
+        self.src.chars().nth(self.current - 1)
+    }
+
+    fn generate_token(&self, token_type: TType) -> Token {
+        let text = self.generate_lexeme();
+        let token = Token::new(token_type, text, self.line);
+
+        token
     }
 
     fn expect(&mut self, expected: char) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-
-        if self.src.chars().nth(self.current).unwrap() != expected {
-            return false;
-        }
-
-        self.current += 1;
-        true
-    }
-
-    fn add_token_t(&mut self, token_type: TokenType) {
-        self.add_token(token_type);
-    }
-
-    fn add_token(&mut self, token_type: TokenType) {
-        let text = &self.src[self.start..self.current];
-        let token = Token::new(token_type, text, self.line);
-        self.tokens.push(token);
-    }
-
-    fn add_token_s(&mut self, token_type: TokenType, text: &str) {
-        self.tokens.push(Token::new(token_type, text, self.line))
-    }
-
-    fn number(&mut self) {
-        while self.peek(0).is_ascii_digit() {
-            if self.peek(0) == '_' {
-                continue;
-            }
-            self.advance();
-        }
-
-        if self.peek(0) == '.' && self.peek(1).is_ascii_digit() {
-            self.advance();
-            while self.peek(0).is_ascii_digit() {
-                if self.peek(0) == '_' {
-                    continue;
-                }
-                self.advance();
-            }
-        }
-
-        self.add_token(TokenType::Number)
-    }
-
-    fn peek(&self, n: usize) -> char {
-        match self.src.chars().nth(self.current + n) {
-            Some(c) => c,
-            None => '\0',
+        match self.advance() {
+            None => false,
+            Some(c) => c == expected,
         }
     }
 
-    fn string(&mut self) -> Result<(), String> {
-        while self.peek(0) != '"' {
-            if self.peek(0) == '\n' {
-                self.line += 1
-            }
-            if self.is_at_end() {
-                return Err(format!("Line {}: Unterminated String", self.line));
-            }
-            self.advance();
-        }
-
-        self.advance();
-
-        let text = self.src[self.start + 1..self.current - 1].to_string();
-        self.add_token_s(TokenType::String, &text);
-        Ok(())
-    }
-
-    fn identifier(&mut self) {
-        let mut c = self.peek(0);
-        while c.is_ascii_alphanumeric() || c == '_' {
-            self.advance();
-            c = self.peek(0);
-        }
-        let s = &self.src[self.start..self.current];
-        let token_type = match KEYWORD_MAP.get(&s) {
-            Some(t) => *t,
-            None => TokenType::Identifier,
-        };
-        self.add_token(token_type)
-    }
-
-    fn single_line_comment(&mut self) {
-        while self.peek(0) != '\n' && !self.is_at_end() {
-            self.advance();
-        }
-    }
-
-    fn multi_line_comment(&mut self) {
+    fn string(&mut self) -> Result<Token, SE> {
+        let lexeme: &str;
         loop {
-            let c = self.advance();
-            match c {
-                '/' => if self.expect('*') {
-                    self.multi_line_comment();
+            match self.advance() {
+                None => return Err(SE::raise((self.line, self.column), "Unterminated  String".to_string())),
+                Some(c) => {
+                    if c == '\n' {
+                        self.line += 1
+                    } else if c == '"' {
+                        break;
+                    }
                 }
-                '*' => if self.expect('/') {
-                    return;
-                }
-                _ => ()
             }
         }
+        lexeme = &self.src[self.start + 1..self.current - 1];
+        return Ok(Token::new(TType::String, lexeme, self.line));
+    }
+
+    fn whitespace(&mut self) -> Token {
+        loop {
+            match self.advance() {
+                None => break,
+                Some(' ') => self.column += 1,
+                Some('\r') => self.column = 0,
+                Some('\n') => self.line += 1,
+                Some('\t') => self.column += 4,
+                Some(_) => {
+                    self.current -= 1;
+                    break;
+                }
+            }
+        }
+
+        Token::new(TType::None, "", self.line)
+    }
+
+    fn identifier(&mut self) -> Token {
+        loop {
+            match self.advance() {
+                Some(c) => {
+                    if !c.is_ascii_alphabetic() && c != '_' {
+                        self.current -= 1;
+                        break;
+                    }
+                },
+                None => break
+            }
+        }
+        let lexeme = &self.src[self.start..self.current];
+
+        Token::new(match KEYWORD_MAP.get(lexeme) {
+                Some(t) => *t,
+                None => TType::Identifier
+            }, 
+            lexeme, 
+            self.line
+        )
+    }
+
+    fn number(&mut self) -> Result<Token, SE> {
+        loop {
+            match self.advance() {
+                Some('.') => (),
+                Some(c) => if !c.is_ascii_digit() {
+                    self.current -= 1;
+                    break;
+                }
+                None => break
+            }
+        }
+
+        let lexeme = self.generate_lexeme();
+
+        Ok(Token::new(TType::Number, lexeme, self.line))
+    }
+
+    fn single_line_comment(&mut self) -> Token {
+        while let Some(c) = self.advance() {
+            if c == '\n' {
+                break;
+            }
+        }
+        self.line += 1;
+        Token::new(TType::None, "", self.line - 1)
+    }
+
+    fn generate_lexeme(&self) -> &str {
+        &self.src[self.start..self.current]
     }
 }

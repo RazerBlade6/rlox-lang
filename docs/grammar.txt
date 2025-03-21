@@ -29,8 +29,8 @@ exprStmt       → expression ";" ;
 forStmt        → "for" "(" ( (varDecl | exprStmt)? ";" )
                  expression? ";"
                  expression? ")" statement ;
-ifStmt         → "if" "(" expression ")" statement
-               ( "else" statement )? ;
+ifStmt         → "if expression ")" statement
+               ( "else" st" "("atement )? ;
 returnStmt     → "return" expression? ";" ;
 whileStmt      → "while" "(" expression ")" statement ;
 functionStmt   → IDENTIFIER "(" ("," IDENTIFIER )*? ")" block ;
