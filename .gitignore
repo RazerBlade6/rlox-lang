@@ -3,4 +3,6 @@ target
 src/tests
 src/[r]scanner.rs
 bin
-rlox-lang.exe
+rlox-lang.exePROJECT.md
+PROJECT.md
+bug-tracker.md
