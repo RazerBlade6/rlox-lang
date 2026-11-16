@@ -1,0 +1,7 @@
+// Operator precedence: * binds tighter than +, unary minus tighter than *,
+// comparison tighter than equality, and - groups left-to-right.
+print(1 + 2 * 3);
+print((1 + 2) * 3);
+print(-2 * 3);
+print(1 < 2 == true);
+print(2 - 1 - 1);

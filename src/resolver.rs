@@ -1,21 +1,21 @@
 //! # Resolver
-//! 
+//!
 //! The Resolver is the component responsible for the pre-runtime compilation (for lack of a better term)
 //! of the program. It consitutes the Static Semantic Analysis, which currently only involves replacing
 //! variables with their known runtime values for faster execution. In theory, this block
 //! would also be used if there were any Macros or other such construct requiring pre-processing.
-//! 
+//!
 //! ### Usage
-//! 
+//!
 //! The `Resolver::resolve(&mut self, &Vec<Stmt>)` method takes the parsed statements
 //! and applies the resolution pass on them. This method returns a `HashMap<usize, usize>` which
 //! should then be passed to `Interpreter::resolve()` to finish the local variable analysis pass
-//! 
+//!
 //! ### Example
 //! ```
 //! use resolver::Resolver;
 //! use interpreter::Interpreter;
-//! 
+//!
 //! fn main() {
 //!     let statements = vec![]; // Parsed statements here    
 //!     let mut resolver = Resolver::new();
@@ -24,13 +24,9 @@
 //!     interpreter.resolve(locals);
 //!     interpreter.interpret(statements);
 //! }
-//! ``` 
+//! ```
 
-use crate::{
-    expr::Expr, 
-    stmt::Stmt, 
-    token::Token
-};
+use crate::{expr::Expr, stmt::Stmt, token::Token};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -88,7 +84,7 @@ impl Resolver {
                 }
             }
             Stmt::Var { name, initializer } => {
-                self.declare(&name);
+                self.declare(&name)?;
                 if let Some(e) = initializer {
                     self.resolve_expr(e)?;
                 }
@@ -106,11 +102,11 @@ impl Resolver {
             Stmt::Function { name, params, body } => {
                 let parent_function = self.function_type.clone();
                 self.function_type = Some(FunctionType::Function);
-                self.declare(name);
+                self.declare(name)?;
                 self.define(name);
                 self.begin_scope();
                 for param in params {
-                    self.declare(param);
+                    self.declare(param)?;
                     self.define(param);
                 }
 
@@ -124,8 +120,13 @@ impl Resolver {
 
     fn resolve_expr(&mut self, expr: &Expr) -> Result<(), String> {
         match expr {
-            Expr::Access { name: _, position, index: _ } => {
+            Expr::Access {
+                name,
+                position,
+                index,
+            } => {
                 self.resolve_expr(&position)?;
+                self.resolve_local(name, *index);
             }
             Expr::Binary {
                 left,
@@ -171,13 +172,18 @@ impl Resolver {
                 }
                 self.resolve_local(name, *index);
             }
-            Expr::Assignment { name, value, position, index } => {
+            Expr::Assignment {
+                name,
+                value,
+                position,
+                index,
+            } => {
                 self.resolve_expr(value)?;
                 self.resolve_local(name, *index);
                 if let Some(position) = position {
                     self.resolve_expr(position)?;
                 }
-            },
+            }
             Expr::Array { elements } => {
                 for element in elements {
                     self.resolve_expr(element)?;
@@ -206,11 +212,19 @@ impl Resolver {
         self.scopes.pop();
     }
 
-    fn declare(&mut self, name: &Token) {
+    fn declare(&mut self, name: &Token) -> Result<(), String> {
         match self.scopes.last_mut() {
-            Some(scope) => scope.insert(name.lexeme.clone(), false),
-            None => return,
+            Some(scope) => {
+                if scope.contains_key(&name.lexeme) {
+                    return Err(format!("Already a variable with this name in this scope"));
+                }
+
+                scope.insert(name.lexeme.clone(), false);
+            }
+            None => {}
         };
+
+        return Ok(());
     }
 
     fn define(&mut self, name: &Token) {

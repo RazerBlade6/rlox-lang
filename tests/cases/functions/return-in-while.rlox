@@ -1,0 +1,14 @@
+// `return` inside a loop must leave the function immediately.
+// Covers: I1 (currently loops forever, so the harness timeout kills it)
+fun firstOver(limit) {
+    var i = 0;
+    while (true) {
+        i = i + 1;
+        if (i > limit) {
+            return i;
+        }
+    }
+}
+
+print(firstOver(3));
+print("done");

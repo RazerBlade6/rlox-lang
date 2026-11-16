@@ -1,0 +1,12 @@
+// The book's resolver test: a function refers to the variable that was in
+// scope where it was *declared*, even if a later declaration shadows it.
+var a = "global";
+{
+    fun showA() {
+        print(a);
+    }
+
+    showA();
+    var a = "block";
+    showA();
+}

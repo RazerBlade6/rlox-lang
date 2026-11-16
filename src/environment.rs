@@ -101,7 +101,12 @@ impl Environment {
             };
         } else {
             match &self.enclosing {
-                None => match self.values.borrow_mut().insert(name.to_string(), value) {
+                None => match self
+                    .values
+                    .borrow()
+                    .contains_key(name)
+                    .then(|| self.values.borrow_mut().insert(name.to_string(), value))
+                {
                     Some(_) => return Ok(()),
                     None => return Err(format!("Undefined Variable {name}")),
                 },

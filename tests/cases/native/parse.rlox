@@ -1,0 +1,5 @@
+// parse(value, "type") converts between number, string and boolean.
+print(parse("42", "number") + 1);
+print(parse(3, "string") + "!");
+print(parse("true", "boolean"));
+print(parse(0, "boolean"));

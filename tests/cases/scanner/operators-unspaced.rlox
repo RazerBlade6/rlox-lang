@@ -1,0 +1,10 @@
+// Operators must scan the same with or without surrounding spaces.
+// Covers: S1
+var a=8;
+var b=2;
+print(a/b);
+print(a-b);
+print(a<b);
+print(a>=b);
+print(a==b);
+print(a!=b);

@@ -41,17 +41,17 @@ pub struct Scanner {
 }
 
 #[derive(Debug)]
-pub struct ScanError((usize, usize), String);
+pub struct Scan((usize, usize), String);
 
-impl Display for ScanError {
+impl Display for Scan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[SCANNER]:{}:{}\n{}", self.0 .0, self.0 .1, self.1)
     }
 }
 
-impl Error for ScanError {}
+impl Error for Scan {}
 
-impl ScanError {
+impl Scan {
     fn raise(location: (usize, usize), msg: String) -> Self {
         Self(location, msg)
     }
@@ -80,7 +80,7 @@ lazy_static! {
     };
 }
 
-use ScanError as SE;
+use Scan as SE;
 
 impl Scanner {
     pub fn new(src: &str) -> Self {
@@ -166,7 +166,10 @@ impl Scanner {
                 } else if c.is_numeric() {
                     self.number()?
                 } else {
-                    return Err(SE::raise((self.line, self.column), format!("Unexpected Character {c}")));
+                    return Err(SE::raise(
+                        (self.line, self.column),
+                        format!("Unexpected Character {c}"),
+                    ));
                 }
             }
         };
@@ -179,6 +182,10 @@ impl Scanner {
         self.src.chars().nth(self.current - 1)
     }
 
+    fn peek(&mut self) -> Option<char> {
+        self.src.chars().nth(self.current)
+    }
+
     fn generate_token(&self, token_type: TType) -> Token {
         let text = self.generate_lexeme();
         let token = Token::new(token_type, text, self.line);
@@ -187,17 +194,25 @@ impl Scanner {
     }
 
     fn expect(&mut self, expected: char) -> bool {
-        match self.advance() {
-            None => false,
-            Some(c) => c == expected,
+        if let Some(c) = self.peek() {
+            if c == expected {
+                self.advance();
+                return true;
+            }
         }
+        false
     }
 
     fn string(&mut self) -> Result<Token, SE> {
         let lexeme: &str;
         loop {
             match self.advance() {
-                None => return Err(SE::raise((self.line, self.column), "Unterminated  String".to_string())),
+                None => {
+                    return Err(SE::raise(
+                        (self.line, self.column),
+                        "Unterminated  String".to_string(),
+                    ))
+                }
                 Some(c) => {
                     if c == '\n' {
                         self.line += 1
@@ -233,34 +248,46 @@ impl Scanner {
         loop {
             match self.advance() {
                 Some(c) => {
-                    if !c.is_ascii_alphabetic() && c != '_' {
+                    if !c.is_ascii_alphanumeric() && c != '_' {
                         self.current -= 1;
                         break;
                     }
-                },
-                None => break
+                }
+                None => break,
             }
         }
         let lexeme = &self.src[self.start..self.current];
 
-        Token::new(match KEYWORD_MAP.get(lexeme) {
+        Token::new(
+            match KEYWORD_MAP.get(lexeme) {
                 Some(t) => *t,
-                None => TType::Identifier
-            }, 
-            lexeme, 
-            self.line
+                None => TType::Identifier,
+            },
+            lexeme,
+            self.line,
         )
     }
 
     fn number(&mut self) -> Result<Token, SE> {
+        let mut dot: bool = false;
+
         loop {
             match self.advance() {
-                Some('.') => (),
-                Some(c) => if !c.is_ascii_digit() {
-                    self.current -= 1;
-                    break;
+                Some('.') => {
+                    if dot {
+                        self.current -= 1;
+                        break;
+                    } else {
+                        dot = true;
+                    }
                 }
-                None => break
+                Some(c) => {
+                    if !c.is_ascii_digit() {
+                        self.current -= 1;
+                        break;
+                    }
+                }
+                None => break,
             }
         }
 

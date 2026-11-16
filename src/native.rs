@@ -1,12 +1,12 @@
 //! # Native Functions
-//! 
-//! This module contains various functions that contain core functionality that I 
+//!
+//! This module contains various functions that contain core functionality that I
 //! can't be bothered to try and figure out myself
-//! 
+//!
 //! For now, this contains `clock()`, which returns the current UNIX epoch time,
 //! `clear(),` which clears stdout, `print()`, which prints to stdout, appending `\n`,
 //! `input()`, which accepts input from the user, and `parse()` which converts between types
-//! 
+//!
 //! ### Future plans
 //! Currently this offers almost all basic functionality, I'd like to reduce my dependence on this
 //! by writing an independent standard library. Probably not happening anytime soon though.  
@@ -14,6 +14,7 @@
 use crate::callable::Callables;
 use crate::expr::Literal;
 use std::collections::HashMap;
+use std::io::{stdout, Write};
 use std::rc::Rc;
 
 pub fn globals() -> HashMap<String, Literal> {
@@ -30,7 +31,7 @@ pub fn globals() -> HashMap<String, Literal> {
     globals.insert(
         "clear".to_string(),
         Literal::Callable(Callables::NativeFunction {
-            name: "clock".to_string(),
+            name: "clear".to_string(),
             arity: 0,
             fun: Rc::from(clear),
         }),
@@ -72,17 +73,9 @@ fn clock(_args: Vec<Literal>) -> Result<Literal, String> {
 }
 
 fn clear(_args: Vec<Literal>) -> Result<Literal, String> {
-    use std::{env::consts::OS, process::Command};
+    print!("\x1B[2J\x1B[H");
 
-    match Command::new(match OS {
-        "windows" => "powershell",
-        "macos" => "terminal",
-        "linux" => "sh",
-        _ => return Err("Commands only implemented for windows, macos and linux".to_string()),
-    })
-    .arg("clear")
-    .output()
-    {
+    match stdout().flush() {
         Ok(_) => Ok(Literal::Nil),
         Err(msg) => Err(msg.to_string()),
     }
@@ -137,14 +130,18 @@ fn parse(args: Vec<Literal>) -> Result<Literal, String> {
             "nil" => return Ok(Literal::Nil),
             _ => return Err("Type should be one of number, string, boolean, nil".to_string()),
         },
-        _ => return Err("Please use as parse(`variable`, `\"Type\"` (Number, String, Boolean, Nil))".to_string(),)
-        
+        _ => {
+            return Err(
+                "Please use as parse(`variable`, `\"Type\"` (Number, String, Boolean, Nil))"
+                    .to_string(),
+            )
+        }
     }
 
     Err(format!(
         "Cannot parse {} to {}",
         args[0].to_type(),
-        args[1].to_type()
+        args[1].to_string()
     ))
 }
 
@@ -152,3 +149,4 @@ fn print(args: Vec<Literal>) -> Result<Literal, String> {
     println!("{}", args[0].to_string());
     return Ok(Literal::Nil);
 }
+

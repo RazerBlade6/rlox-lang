@@ -1,0 +1,9 @@
+// Reading by index, overwriting an element, appending at index == length,
+// and printing an empty array.
+var a = [1, 2, 3];
+print(a[0]);
+a[1] = 20;
+print(a);
+a[3] = 4;
+print(a);
+print([]);

@@ -1,0 +1,10 @@
+var a = 2.0;
+print(a);
+
+var b=3.;
+
+print(a + b);
+
+var c = 3.3.3;
+var d = .5;
+

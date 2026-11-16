@@ -1,0 +1,10 @@
+Welcome to the Lox Interpreter!
+Press CTRL + D to exit
+>>> >>> 1
+>>> >>> 2
+>>> 
+ERROR:
+Undefined variable b
+
+>>> still running
+>>> Interpreter Quit

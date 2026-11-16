@@ -1,0 +1,7 @@
+// `!` must negate booleans (is_falsy returns Boolean(b) instead of Boolean(!b)).
+// Covers: I5
+// Note the space after `!`: without it, S1 eats the next character.
+print(! false);
+print(! true);
+print(! nil);
+print(! 0);

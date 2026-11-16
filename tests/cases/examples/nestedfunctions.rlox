@@ -1,0 +1,33 @@
+fun make_counter() {
+    var i = 0;
+    
+    fun count() {
+        i = i + 1;
+        print(i);
+    }
+
+    return count;
+}
+
+var count = make_counter();
+count(); 
+count(); 
+count = make_counter();
+count();
+count();
+count();
+count();
+
+var a = "global";
+
+fun outer() {
+    fun example() {
+        print(a);   
+    }
+
+    example(); 
+    var a = "local";
+    example();
+}
+
+outer();

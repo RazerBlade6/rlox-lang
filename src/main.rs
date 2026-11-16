@@ -8,17 +8,16 @@ mod resolver;
 mod scanner;
 mod stmt;
 mod token;
+mod value;
 
 use crate::{
-    interpreter::Interpreter,
-    parser::Parser,
-    scanner::Scanner,
-    stmt::Stmt,
-    resolver::Resolver,
-    token::Token
+    interpreter::Interpreter, parser::Parser, resolver::Resolver, scanner::Scanner, stmt::Stmt,
+    token::Token,
 };
 use std::{
-    collections::HashMap, env, fs, io::{self, Write}
+    collections::HashMap,
+    env, fs,
+    io::{self, Write},
 };
 
 fn run_prompt() -> Result<(), String> {
@@ -39,10 +38,10 @@ fn run_prompt() -> Result<(), String> {
 
         if stdin.read_line(&mut src).map_err(|err| err.to_string())? == 0 {
             println!("Interpreter Quit");
-            return Ok(())
+            return Ok(());
         }
 
-        run(src, &mut interpreter).unwrap_or_else(|msg| println!("\nERROR:\n{msg}\n"))
+        run(src, &mut interpreter).unwrap_or_else(|msg| println!("\nERROR: {msg}\n"))
     }
 }
 
@@ -59,8 +58,6 @@ fn run(src: String, interpreter: &mut Interpreter) -> Result<(), String> {
     let mut scanner: Scanner = Scanner::new(src.as_str());
     let tokens: Vec<Token> = scanner.scan_tokens()?;
 
-    dbg!(&tokens);
-    
     let mut parser: Parser = Parser::new(tokens);
     let statements: Vec<Stmt> = parser.parse()?;
 
@@ -80,6 +77,6 @@ fn main() {
     match args.len() {
         1 => run_prompt().unwrap_or_else(|msg| println!("{msg}")),
         2 => run_file(&args[1]).unwrap_or_else(|msg| println!("{msg}")),
-        _ => println!("Please use as rlox ''filepath")
-    }    
+        _ => println!("Please use as rlox ''filepath"),
+    }
 }

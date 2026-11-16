@@ -1,38 +1,38 @@
 //! # Expressions
-//! 
-//! Expressions are the heart of the Lox Language, they represent a piece of code that 
+//!
+//! Expressions are the heart of the Lox Language, they represent a piece of code that
 //! will be resolved into a value, and are used as the mid-level interface between the Token and Statements
-//! 
-//! Expressions are of many different types, any change to this enum will very likely be reflected in both the syntax 
+//!
+//! Expressions are of many different types, any change to this enum will very likely be reflected in both the syntax
 //! and semantics. Though an expression is a syntactic unit, it is tighly bound to the runtime as well, and as such
-//! changes to this module are difficult to implement. 
-//! 
-//! `Expr` implements various helper methods to create new variants, mainly because it extensively used `Box<Expr>` to represent 
+//! changes to this module are difficult to implement.
+//!
+//! `Expr` implements various helper methods to create new variants, mainly because it extensively used `Box<Expr>` to represent
 //! nested expressions. To simplify calls, these methods are to be used rather than directly creating `Expr::Variant {}`
-//! 
-//! Unlike Statements, which are **interpreted** during runtime, Expressions are **evaluated**. As such, the evaluation will 
-//! return a Literal, not generate an effect visible to the user. 
-//! 
+//!
+//! Unlike Statements, which are **interpreted** during runtime, Expressions are **evaluated**. As such, the evaluation will
+//! return a Literal, not generate an effect visible to the user.
+//!
 //! ## Literal
-//! `Literal` is the implementation of the type system of Lox, a discriminated enum that is what allows dynamic 
+//! `Literal` is the implementation of the type system of Lox, a discriminated enum that is what allows dynamic
 //! type systems in the statically-typed Rust. Literal is used extensively throughout the code, so adding more Literal Variants
 //! is highly discouraged. If an item can be implemented without adding extra Literals, that implementation is preferred.
-//! 
+//!
 //! Both `Expr` and `Literal` implement a `to_string()` method, used extensively.
-//! 
+//!
 //! ### Usage
 //! ```
 //! use expr::{Expr, Literal};
 //! use token::*;
-//! 
+//!
 //! fn main() {
 //!     let left: Expr = Expr::literal(Literal::Number(45.2));
 //!     let token: Token = Token::new(Token::new(TT::Plus, "+", 0));
 //!     let right: Expr = Expr::literal(Literal::Number(21.1))
 //!     let expr: Expr = Expr::binary(left, token, right)
-//! 
-//! 
-//!     Expr retains general info pertaining to overall structure of the 
+//!
+//!
+//!     Expr retains general info pertaining to overall structure of the
 //! }
 //! ```
 
@@ -52,9 +52,9 @@ pub enum Literal {
     Array(Vec<Literal>),
     Callable(Callables),
 }
-use {Callables::*, Literal::*};
 use Literal as L;
 use TokenType as TT;
+use {Callables::*, Literal::*};
 
 impl Literal {
     pub fn to_string(&self) -> String {
@@ -63,7 +63,15 @@ impl Literal {
             L::Str(s) => return s.to_string(),
             L::Boolean(b) => return format!("{b}"),
             L::Nil => return String::from("nil"),
-            L::Array(a) => return format!("[{}]", a.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ")),
+            L::Array(a) => {
+                return format!(
+                    "[{}]",
+                    a.iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             L::Callable(other) => other.to_string(),
         }
     }
@@ -112,7 +120,7 @@ impl Literal {
         match self {
             Number(x) => Boolean(*x == 0.0),
             Str(s) => Boolean(s.len() == 0),
-            Boolean(b) => Boolean(*b),
+            Boolean(b) => Boolean(!*b),
             Array(a) => Boolean(a.is_empty()),
             Nil => Boolean(true),
             Callable(_) => Boolean(false),
@@ -134,12 +142,12 @@ impl Literal {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Array {
-        elements: Vec<Expr>
+        elements: Vec<Expr>,
     },
     Access {
         name: Token,
         position: Box<Expr>,
-        index: usize
+        index: usize,
     },
     Binary {
         left: Box<Expr>,
@@ -181,11 +189,22 @@ pub enum Expr {
 impl Expr {
     pub fn to_string(&self) -> String {
         match self {
-            Expr::Access { name, position, index: _ } => {
+            Expr::Access {
+                name,
+                position,
+                index: _,
+            } => {
                 format!("{}[{}]", name.lexeme, position.to_string())
             }
             Expr::Array { elements } => {
-                format!("[{}]", elements.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(", "))
+                format!(
+                    "[{}]",
+                    elements
+                        .iter()
+                        .map(|b| b.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
             Expr::Binary {
                 left,
@@ -244,7 +263,11 @@ impl Expr {
     }
 
     pub fn access(name: Token, position: Expr, index: usize) -> Self {
-        Self::Access { name, position: Box::from(position), index }
+        Self::Access {
+            name,
+            position: Box::from(position),
+            index,
+        }
     }
 
     pub fn new_binary(left: Expr, operator: Token, right: Expr) -> Self {
@@ -284,7 +307,12 @@ impl Expr {
         Self::Variable { index, name }
     }
 
-    pub fn create_assigment(name: Token, value: Expr, position: Option<Box<Expr>>, index: usize) -> Self {
+    pub fn create_assigment(
+        name: Token,
+        value: Expr,
+        position: Option<Box<Expr>>,
+        index: usize,
+    ) -> Self {
         Self::Assignment {
             name,
             value: Box::from(value),
@@ -317,13 +345,20 @@ impl Expr {
 
             Expr::Variable { name, index } => environment.get(&name.lexeme, *index),
 
-            Expr::Assignment { name, value, position, index } => {
-                Self::evaluate_assignment(environment, name, value, position, *index)
-            }
+            Expr::Assignment {
+                name,
+                value,
+                position,
+                index,
+            } => Self::evaluate_assignment(environment, name, value, position, *index),
 
             Expr::Array { elements } => Self::evaluate_array(environment, elements),
 
-            Expr::Access { name, position, index } => Self::evaluate_access(environment, name, position, *index),
+            Expr::Access {
+                name,
+                position,
+                index,
+            } => Self::evaluate_access(environment, name, position, *index),
 
             Expr::Logical {
                 left,
@@ -411,19 +446,30 @@ impl Expr {
         index: usize,
     ) -> Result<Literal, String> {
         let value = value.evaluate(environment)?;
-        
+
         if let Some(position) = position {
             let position = if let Number(n) = position.evaluate(environment)? {
+                if n.is_sign_negative() || n.fract() != 0.0 || n.is_nan() {
+                    return Err(format!(
+                        "Can only index into a list with a positive integer"
+                    ));
+                }
                 n.round() as usize
             } else {
-                return Err(format!("Can only index into a list with number"))
+                return Err(format!(
+                    "Can only index into a list with a positive integer."
+                ));
             };
 
             let mut target = environment.get(&name.lexeme, index)?;
             match target {
                 Array(ref mut array) => {
                     if position > array.len() {
-                        return Err(format!("Attempted to assign at {} but array is of length {}", position, array.len()))
+                        return Err(format!(
+                            "Attempted to assign at {} but array is of length {}",
+                            position,
+                            array.len()
+                        ));
                     } else if position == array.len() {
                         array.push(value)
                     } else {
@@ -431,27 +477,34 @@ impl Expr {
                     }
                     let value = Literal::Array(array.clone());
                     environment.assign(&name.lexeme, value.clone(), index)?;
-                    return Ok(value)
-                },
+                    return Ok(value);
+                }
                 Str(ref mut string) => {
                     if position > string.len() {
-                        return Err(format!("Attempted to assign at {} but string is of length {}", position, string.len()))
+                        return Err(format!(
+                            "Attempted to assign at {} but string is of length {}",
+                            position,
+                            string.len()
+                        ));
                     } else if position == string.len() {
                         string.push_str(&value.to_string());
                     } else {
                         if value.to_string().len() > 1 {
-                            return Err(format!("Cannot assign length greater than 1 to middle of string"))
+                            return Err(format!(
+                                "Cannot assign length greater than 1 to middle of string"
+                            ));
                         } else {
-                            *string = (&string[0..position]).to_string() + &value.to_string() + &string[position + 1..string.len()];
+                            *string = (&string[0..position]).to_string()
+                                + &value.to_string()
+                                + &string[position + 1..string.len()];
                         }
                     }
                     let value = Literal::Str(string.clone());
                     environment.assign(&name.lexeme, value.clone(), index)?;
                     return Ok(value);
-                },
-                other => return Err(format!("Cannot index into {}", other.to_type()))
+                }
+                other => return Err(format!("Cannot index into {}", other.to_type())),
             }
-            
         } else {
             environment.assign(&name.lexeme, value.clone(), index)?;
             Ok(value)
@@ -499,7 +552,9 @@ impl Expr {
                     arity,
                     body,
                     environment,
-                } => return Self::call_function(name, params, arity, body, &environment, arguments),
+                } => {
+                    return Self::call_function(name, params, arity, body, &environment, arguments)
+                }
                 NativeFunction { name, arity, fun } => {
                     return Self::call_native(name, arity, fun, arguments)
                 }
@@ -559,7 +614,7 @@ impl Expr {
         }
         Ok(fun(arguments)?)
     }
-    
+
     fn evaluate_array(environment: &Environment, elements: &[Expr]) -> Result<Literal, String> {
         let mut array = vec![];
         for element in elements {
@@ -568,26 +623,49 @@ impl Expr {
 
         Ok(Literal::Array(array))
     }
-    
-    fn evaluate_access(environment: &Environment, name: &Token, position: &Box<Expr>, index: usize) -> Result<Literal, String> {
+
+    fn evaluate_access(
+        environment: &Environment,
+        name: &Token,
+        position: &Box<Expr>,
+        index: usize,
+    ) -> Result<Literal, String> {
         let position = position.evaluate(environment)?;
         let pos: usize;
         if let Literal::Number(n) = position {
+            if n.is_sign_negative() || n.fract() != 0.0 || n.is_nan() {
+                return Err(format!("Can only index a list with a positive integer"));
+            }
             pos = n.round() as usize
         } else {
-            return Err(format!("Cannot use type {} to index a list", position.to_type()))
+            return Err(format!(
+                "Cannot use type {} to index a list",
+                position.to_type()
+            ));
         }
-        
+
         match environment.get(&name.lexeme, index)? {
             Array(array) => match array.get(pos) {
                 Some(l) => return Ok(l.clone()),
-                None => return Err(format!("Attempted to get element {} from array of length {}", pos, array.len()))
-            }
+                None => {
+                    return Err(format!(
+                        "Attempted to get element {} from array of length {}",
+                        pos,
+                        array.len()
+                    ))
+                }
+            },
             Str(string) => match string.chars().nth(pos) {
                 Some(c) => return Ok(Literal::Str(String::from(c))),
-                None => return Err(format!("Attempted to get element {} from string of length {}", pos, string.len()))
+                None => {
+                    return Err(format!(
+                        "Attempted to get element {} from string of length {}",
+                        pos,
+                        string.len()
+                    ))
+                }
             },
-            other => return Err(format!("Cannot index into type {}", other.to_type()))
+            other => return Err(format!("Cannot index into type {}", other.to_type())),
         };
     }
 }
